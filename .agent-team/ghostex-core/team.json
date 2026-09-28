@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "id": "ghostex-core",
+  "outcome": "Deliver Ghostex changes through the KBD process (assess, spec, plan, execute, reflect), landing each fix in the upstream layer that owns it, as defined by AGENTS.md and ai/where-to-fix.md.",
+  "scope": "project",
+  "harness": "claude",
+  "roles": [
+    {
+      "id": "planner",
+      "description": "Run the KBD stages and OpenSpec changes; decide which upstream layer owns each change and hand work to layer roles.",
+      "prompt": "AGENTS.md is the constitution: upstream rules win over any process rule here. Run KBD assess, analyze, spec, plan and reflect; express each change as an OpenSpec change. For every change, apply the 'Where a fix or feature belongs' ladder in AGENTS.md and ai/where-to-fix.md, and assign it to the first layer role that can own it, stating why. When delegating to other agents inside Ghostex, use the upstream CLI: read `ghostex agents --help` and `ghostex --help` first and never rely on remembered command shapes. Check `ghostex sessions` before commits. Never switch branches; the worktree stays on main.",
+      "skills": [
+        "kbd-assess",
+        "kbd-analyze",
+        "kbd-spec",
+        "kbd-plan",
+        "kbd-execute",
+        "kbd-reflect",
+        "kbd-status",
+        "openspec-propose",
+        "openspec-verify-change",
+        "openspec-archive-change"
+      ],
+      "owns": [
+        ".kbd-orchestrator/**",
+        "openspec/**",
+        ".prometheus/**"
+      ],
+      "inputs": [
+        "User request",
+        "AGENTS.md",
+        "ai/where-to-fix.md",
+        "KBD waypoint"
+      ],
+      "outputs": [
+        "OpenSpec change",
+        "KBD plan with layer assignment per task"
+      ],
+      "dependsOn": [],
+      "modelPolicy": {
+        "tier": "hard"
+      }
+    },
+    {
+      "id": "gxserver",
+      "description": "Layer 1: gxserver (Rust) - sessions, terminal input/screen, hooks, activity, transcripts, lifecycle, git/worktrees, settings, CLI verbs.",
+      "prompt": "You own the gxserver layer (server/src, and crates it compiles in: packages/find, packages/paths). Anything that every client (desktop, web, mobile, ghostex CLI) would hit belongs here. Read CDXC comments in the area first (rg 'CDXC:<Area>'). Run cargo from inside server/. To prove a change against the live app, run `bun run start:server` (allowed without asking on macOS) and test via the GPUI web build, ghostex CLI verbs or `zmx history`; say in your report that you ran it. Update skills/ghostex-help in the same change when a CLI verb or setting changes (coordinate with help-docs).",
+      "skills": [
+        "openspec-apply-change",
+        "prometheus-rust-best-practices",
+        "prometheus-rust-async-patterns",
+        "debugging-and-error-recovery"
+      ],
+      "owns": [
+        "server/**",
+        "packages/find/**",
+        "packages/paths/**"
+      ],
+      "inputs": [
+        "Planner task assigned to layer 1"
+      ],
+      "outputs": [
+        "gxserver implementation",
+        "Live verification evidence"
+      ],
+      "dependsOn": [
+        "planner"
+      ],
+      "modelPolicy": {
+        "tier": "hard"
+      }
+    },
+    {
+      "id": "session-daemons",
+      "description": "Layer 2: zmx (POSIX, WSL) and wmx (native Windows) session daemons, changed together.",
+      "prompt": "You own zmx and wmx. Every Ghostex-consumed zmx change must be mirrored in wmx or you must explain why wmx is unaffected. Follow the WIRE_GENERATION rules in AGENTS.md and ai/zmx-wire-generation.md exactly: bump only for incompatible IPC; a bump restarts every live session, so report it and check `ghostex sessions`. Keep the private OSC sequences byte-identical with the three emitters. Verify with `zig build test` in .dependencies/zmx and `zmx version`. Ghostex startup and paths stay in gxserver, not here.",
+      "skills": [
+        "openspec-apply-change",
+        "debugging-and-error-recovery"
+      ],
+      "owns": [
+        ".dependencies/zmx/**",
+        ".dependencies/wmx/**"
+      ],
+      "inputs": [
+        "Planner task assigned to layer 2"
+      ],
+      "outputs": [
+        "zmx and wmx changes",
+        "zig test evidence"
+      ],
+      "dependsOn": [
+        "planner"
+      ],
+      "modelPolicy": {
+        "tier": "hard"
+      }
+    },
+    {
+      "id": "rust-cores",
+      "description": "Layer 3: gx-core (sidebar rules), gx-chat-core (the only chat brain), gx-protocol (wire types), and their client/mobile bindings.",
+      "prompt": "You own the shared Rust cores. All chat rules go only into packages/gx-chat-core; keep the document JSON contract in its lib.rs. The GPUI chat and the React Native chat must match: put rules here so both clients get them. Never reintroduce a TypeScript chat brain, QuickJS or a JavaScript engine in the desktop.",
+      "skills": [
+        "openspec-apply-change",
+        "prometheus-rust-best-practices",
+        "rust-patterns",
+        "prometheus-ui-ux"
+      ],
+      "owns": [
+        "packages/gx-core/**",
+        "packages/gx-chat-core/**",
+        "packages/gx-protocol/**",
+        "packages/gx-chat-client/**",
+        "packages/gx-chat-mobile/**",
+        "packages/client-storage-native/**"
+      ],
+      "inputs": [
+        "Planner task assigned to layer 3"
+      ],
+      "outputs": [
+        "Core implementation",
+        "Contract notes for renderer roles"
+      ],
+      "dependsOn": [
+        "planner"
+      ],
+      "modelPolicy": {
+        "tier": "hard"
+      }
+    },
+    {
+      "id": "desktop-native",
+      "description": "Layers 4-5: native renderers (native_chat, native_sidebar, native_kanban, native_automate) and desktop host glue (gx_chat, gx_store), also compiled by gpui-web.",
+      "prompt": "You own apps/desktop/src and apps/gpui-web. Renderers do layout and input only; host glue does platform I/O only. Run cargo from inside apps/desktop (pinned toolchain, sccache). Follow the native layout and hit-testing discipline in AGENTS.md: no hitTest overrides or invisible overlays without explicit user confirmation. Prove chat and sidebar changes in the GPUI web build in a headless browser, never in the user's window. Never run `bun run start` unless the user asks.",
+      "skills": [
+        "openspec-apply-change",
+        "prometheus-rust-best-practices",
+        "prometheus-ui-ux"
+      ],
+      "owns": [
+        "apps/desktop/src/**",
+        "apps/gpui-web/**"
+      ],
+      "inputs": [
+        "Planner task assigned to layers 4-5",
+        "Core contract notes"
+      ],
+      "outputs": [
+        "Renderer and host changes",
+        "GPUI web verification evidence"
+      ],
+      "dependsOn": [
+        "planner"
+      ],
+      "modelPolicy": {
+        "tier": "medium"
+      }
+    },
+    {
+      "id": "web-ui",
+      "description": "Shared TypeScript contracts and the React UI still shipped in CEF pages (modal host, Docs/manage, Kanban bug fixes, Find, settings).",
+      "prompt": "You own packages/shared, packages/core-ui, packages/components and apps/desktop/views and sidebar. Start no new work in the React Kanban/Automate pages (bug fixes only). Use the shared SegmentedControl, Switch and focus-ring conventions. Imports use the literal @/ repo-root paths. Gate with both `bun run typecheck` and `bun run desktop:typecheck`.",
+      "skills": [
+        "openspec-apply-change",
+        "vercel-react-best-practices",
+        "prometheus-ui-ux"
+      ],
+      "owns": [
+        "packages/shared/**",
+        "packages/core-ui/**",
+        "packages/components/**",
+        "packages/client-storage/**",
+        "apps/desktop/views/**",
+        "apps/desktop/sidebar/**",
+        "apps/editor/**"
+      ],
+      "inputs": [
+        "Planner task touching shared contracts or CEF pages"
+      ],
+      "outputs": [
+        "TypeScript changes",
+        "Typecheck evidence"
+      ],
+      "dependsOn": [
+        "planner"
+      ],
+      "modelPolicy": {
+        "tier": "medium"
+      }
+    },
+    {
+      "id": "mobile",
+      "description": "The React Native / Expo app (Android) and its native chat views on gx-chat-core, plus the embedded Find view.",
+      "prompt": "You own apps/mobile (the app is a git submodule; commit there deliberately). Chat is native RN views fed by gx-chat-core via UniFFI; every chat change must match the GPUI chat in the same change, or you must report why one platform cannot. Never restore the retired iOS or Termux apps. Keep zmxDisplay.ts OSC emission byte-identical with the other emitters.",
+      "skills": [
+        "openspec-apply-change",
+        "vercel-react-native-skills",
+        "prometheus-ui-ux"
+      ],
+      "owns": [
+        "apps/mobile/**"
+      ],
+      "inputs": [
+        "Planner task assigned to mobile",
+        "Core contract notes"
+      ],
+      "outputs": [
+        "Mobile changes",
+        "Parity report against GPUI chat"
+      ],
+      "dependsOn": [
+        "planner"
+      ],
+      "modelPolicy": {
+        "tier": "medium"
+      }
+    },
+    {
+      "id": "help-docs",
+      "description": "Keeps skills/ghostex-help and the ai/ procedure docs true to the shipped product.",
+      "prompt": "You own skills/** and ai/**. Update skills/ghostex-help in the same change whenever a view, surface, setting, hotkey or user-run CLI verb changes; regenerate settings.md, hotkeys.md and settings-catalog.json with `bun run help:generate`, never by hand. Pushes to main touching skills/** reach every installed Ghostex, so never leave a skill half-finished. Maintain ai/AREAS.md when a new CDXC area is justified.",
+      "skills": [
+        "documentation-and-adrs"
+      ],
+      "owns": [
+        "skills/**",
+        "ai/**"
+      ],
+      "inputs": [
+        "Delivered behaviour from layer roles"
+      ],
+      "outputs": [
+        "Help and procedure updates"
+      ],
+      "dependsOn": [
+        "gxserver",
+        "desktop-native",
+        "web-ui",
+        "mobile"
+      ],
+      "modelPolicy": {
+        "tier": "medium"
+      }
+    },
+    {
+      "id": "reviewer",
+      "description": "Independent review at the completed-phase boundary: layer placement, zmx/wmx parity, chat parity, CDXC decisions, and defects.",
+      "prompt": "Review only after the implementation phase is complete, in a context separate from the builders. Check first that each change sits in the layer AGENTS.md assigns, that no CDXC DECISION was changed without the user, that zmx/wmx and GPUI/RN chat parity hold, and that no fallback hides a behaviour that should be corrected. Report concrete defects with file:line; do not rewrite code. Write findings under .agent-team/findings/.",
+      "skills": [
+        "code-review-and-quality",
+        "openspec-verify-change",
+        "prometheus-ui-review"
+      ],
+      "owns": [
+        ".agent-team/findings/**"
+      ],
+      "inputs": [
+        "Phase diff",
+        "Verification evidence"
+      ],
+      "outputs": [
+        "Review findings"
+      ],
+      "dependsOn": [
+        "gxserver",
+        "session-daemons",
+        "rust-cores",
+        "desktop-native",
+        "web-ui",
+        "mobile",
+        "help-docs"
+      ],
+      "modelPolicy": {
+        "tier": "hard"
+      }
+    }
+  ]
+}

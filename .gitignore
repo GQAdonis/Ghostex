@@ -106,3 +106,16 @@ __pycache__/
 server/NONE
 apps/gpui-web/www/public/
 apps/web/
+
+# prometheus-context-bootstrap
+.prometheus/.writer.lock
+.prometheus/.review-pending
+.claude/settings.json.bak.*
+
+# agent-team-creator local state and staging
+.agent-team/state.json
+.agent-team/recovery/
+.agent-team/export-*/
+.agent-team/*-request.json
+.agent-team/intake.json
+.prometheus/recovery/
